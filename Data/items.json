@@ -1,0 +1,27 @@
+{
+  "0": {
+    "name": "Diamond",
+    "description": "Is a rare mineral obtained from diamond ore.",
+    "iconPath": "../Assets/diamond.webp"
+  },
+  "1": {
+    "name": "Bottle of enchanting",
+    "description": "Is a bottle that releases experience orbs when thrown.",
+    "iconPath": "../Assets/bottle_of_enchanting.webp"
+  },
+  "2": {
+    "name": "Carrot",
+    "description": "Is a food item obtained from carrot crops.",
+    "iconPath": "../Assets/carrot.webp"
+  },
+  "3": {
+    "name": "Enchanted Book",
+    "description": "Is an item that lets players add enchantments to certain items.",
+    "iconPath": "../Assets/enchanted_book.webp"
+  },
+  "4": {
+    "name": "Bow",
+    "description": "Is a ranged weapon that shoots arrows.",
+    "iconPath": "../Assets/bow.webp"
+  }
+}

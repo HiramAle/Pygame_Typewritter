@@ -35,12 +35,14 @@ class Text(GameObject):
 
 
 class DialogueBox(GameObject):
-    def __init__(self, text: str, position: tuple, groups: pygame.sprite.Group | list[pygame.sprite.Group]):
+    def __init__(self, text: str, position: tuple, size: tuple,
+                 groups: pygame.sprite.Group | list[pygame.sprite.Group]):
         super().__init__("dialogue", position, groups)
         self.text = text
-        self.textBox = pygame.Surface((400, 200))
+        self.size = size
+        self.textBox = pygame.Surface(self.size)
         self.textBox.fill(constants.BG_COLOR2)
-        self.speed = 30
+        self.speed = 40
         self.counter = 0
         self.done = False
         self.font = pygame.font.Font("../Assets/monogram.ttf", 40)
@@ -58,13 +60,16 @@ class DialogueBox(GameObject):
         self.x = 0
         self.y = 0
         self.pastIndex = -1
-        self.linesBoxWidth = int(self.textBox.get_height() / self.spaceSize[1])
-        self.activeLines = self.formattedText[:self.linesBoxWidth]
-        self.remainingLines = self.formattedText[self.linesBoxWidth:]
+        self.maxLines = int(self.textBox.get_height() / self.spaceSize[1])
+        self.activeLines = self.formattedText[:self.maxLines]
+        self.remainingLines = self.formattedText[self.maxLines:]
+        self.indicator = pygame.Surface((30, 30))
+        self.indicator.fill(constants.BLUE)
+        self.finished = False
 
     def next_lines(self):
-        if len(self.remainingLines) > 0:
-            self.textBox = pygame.Surface((400, 200))
+        if len(self.remainingLines) > 0 and self.done:
+            self.textBox = pygame.Surface(self.size)
             self.textBox.fill(constants.BG_COLOR2)
 
             self.counter = 0
@@ -74,15 +79,21 @@ class DialogueBox(GameObject):
             self.x = 0
             self.y = 0
 
-            self.activeLines = self.remainingLines[:self.linesBoxWidth]
-            self.remainingLines = self.remainingLines[self.linesBoxWidth:]
+            self.activeLines = self.remainingLines[:self.maxLines]
+            self.remainingLines = self.remainingLines[self.maxLines:]
             print(f"Remaining: {len(self.remainingLines)}")
-
-
+        elif len(self.remainingLines) == 0 and self.done:
+            # self.finished = True
+            self.kill()
+            return True
 
     def update(self, dt: float) -> None:
         self.typewriter(self.activeLines, dt)
         self.image.blit(self.textBox, (0, 0))
+        if self.done:
+            self.image.blit(self.indicator, (
+                self.image.get_width() - self.indicator.get_width(),
+                self.image.get_height() - self.indicator.get_height()))
 
     def formatter(self, lines: list):
         text = []
@@ -109,65 +120,35 @@ class DialogueBox(GameObject):
             if self.counter >= len(self.convert_to_text(lines).replace("|", " ")):
                 self.done = True
         # Render
-
         if int(self.counter) != int(self.pastIndex) and not self.done:
             char_surface = self.font.render(self.convert_to_text(lines).replace("|", " ")[int(self.counter)], False,
                                             constants.WHITE)
-            print(f"Char: {self.convert_to_text(lines)[int(self.counter)]}")
             if self.convert_to_text(lines)[int(self.counter)] == "|":
                 self.y += char_surface.get_height()
                 self.x = 0
-                # self.newText = self.newText[:int(self.counter)] + self.newText[int(self.counter):]
             else:
                 self.textBox.blit(char_surface, (self.x, self.y))
                 self.x += char_surface.get_width()
             self.pastIndex = self.counter
 
-    def convert_to_text(self, lines: list):
+    @staticmethod
+    def convert_to_text(lines: list):
         return "|".join([" ".join(line) for line in lines])
 
-    def blit(self):
-        x = 0
-        y = 0
-        for line in self.textSurfaces:
-            line_surface = self.font.render(" ".join(line), False, constants.WHITE)
-            self.textBox.blit(line_surface, (x, y))
-            y += line_surface.get_height()
 
-        # lines = []
-        # word_width, word_height = 0, 0
-        # x, y = self.position
-        # for line in self.lines:
-        #     words = []
-        #     for word in line:
-        #         word_width, word_height = self.font.size(word)
-        #         if x + word_width >= self.position[0] + self.maxWidth:
-        #             x = self.position[0]  # Reset the x.z
-        #             y += word_height  # Start on new row.
-        #
-        #         x += word_width + self.spaceLength[0]
-        #         line_surface.blit(word_surface, (x, 0))
-        #     self.textSurfaces.append(line_surface)
-        #     x = self.position[0]  # Reset the x.
-        #     y += word_height  # Start on new row.
-        # print(self.textSurfaces)
+class NPC(GameObject):
+    def __init__(self, position: tuple, groups: pygame.sprite.Group | list[pygame.sprite.Group]):
+        super().__init__("NPC", position, groups)
+        self.image = pygame.Surface((32, 32))
+        self.image.fill(constants.YELLOW)
+        self.rect = self.image.get_rect(center=self.position)
+        self.dialogue = constants.TEXT_TEST
+        self.dialogueArea = self.rect.inflate(32, 32)
+        self.dialogueArea.center = self.rect.center
 
-    def blit_lines(self):
-        x, y = 0, 0
-        for text in self.textSurfaces:
-            text: pygame.Surface
-            self.textBox.blit(text, (0, y))
-            y += text.get_height()
-
-        # self.image.blit(self.textBox, (0, 0))
-        # text = self.newText[0:round(self.counter)]
-        # word_height = self.font.size(text)[0]
-        # if text:
-        #     if text[-1] == "|":
-        #         x = 0
-        #         y += word_height
-        # self.textImage = self.font.render(text, False, constants.WHITE)
-        # self.image.blit(self.textImage, (x, y))
+    def start_dialogue(self, group: pygame.sprite.Group):
+        DialogueBox(self.dialogue, (0, constants.CANVAS_HEIGHT - 200),
+                    (constants.CANVAS_WIDTH, 200), group)
 
 
 class Player(GameObject):
@@ -210,8 +191,17 @@ class Player(GameObject):
         self.position.y += self.direction.y * self.movementSpeed * dt
         self.rect.centery = round(self.position.y)
 
+    def check_dialogue(self, group: pygame.sprite.Group):
+        for sprite in group:
+            sprite: GameObject
+            if sprite.key == "NPC":
+                sprite: NPC
+                if self.rect.colliderect(sprite.dialogueArea):
+                    sprite.start_dialogue(group)
+                    return True
+        return False
+
     def update(self, dt: float) -> None:
-        self.input()
         self.move(dt)
 
 
@@ -224,8 +214,10 @@ class Game:
         self.running = True
         self.sprites = pygame.sprite.Group()
         self.player = Player(self.sprites)
-        self.box = DialogueBox(constants.TEXT_TEST, (100, 100), self.sprites)
+        self.dialogueActive = False
         self.coords = Text("0,0", (0, 0), self.sprites)
+        self.box = None
+        NPC((10, 10), self.sprites)
 
     def render(self):
         # Blit the game canvas on display
@@ -249,9 +241,22 @@ class Game:
                     exit()
                 if event.type == pygame.KEYDOWN:
                     if pygame.key.get_pressed()[pygame.K_SPACE]:
-                        if self.box.done:
-                            self.box.next_lines()
+                        if not self.dialogueActive:
+                            if self.player.check_dialogue(self.sprites):
+                                self.dialogueActive = True
 
+
+                            # self.box = DialogueBox(constants.TEXT_TEST, (0, self.gameCanvas.get_height() - 200),
+                            #                        (self.gameCanvas.get_width(), 200), self.sprites)
+                        else:
+                            if self.box.next_lines():
+                                self.dialogueActive = False
+
+                            # if self.box.finished:
+                            #     self.dialogueActive = False
+                            #     self.box.kill()
+            if not self.dialogueActive:
+                self.player.input()
             self.update()
             self.draw()
             pygame.display.update()
