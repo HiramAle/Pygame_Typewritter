@@ -1,8 +1,8 @@
-from enum import Enum
 import pygame
+import scene
 import constants
-import base_game
 import json
+from enum import Enum
 
 
 class ItemId(Enum):
@@ -19,6 +19,7 @@ class Item:
     icon: pygame.Surface
 
     def __init__(self, item_id: ItemId):
+        self.dragging = False
         with open("../Data/items.json") as data:
             items_data = json.load(data)
         self.name = items_data[item_id.value]["name"]
@@ -26,106 +27,132 @@ class Item:
         self.icon = pygame.image.load(items_data[item_id.value]["iconPath"]).convert_alpha()
 
 
-class InventoryItem(pygame.sprite.Sprite):
-    def __init__(self, item: Item, groups: pygame.sprite.Group | list[pygame.sprite.Group]):
-        super().__init__(groups)
-        self.position = pygame.math.Vector2(0, 0)
-        self.item = item
-        self.defaultImage = pygame.transform.smoothscale(item.icon, (constants.TILE_SIZE * 2, constants.TILE_SIZE * 2))
-        self.image = self.defaultImage
-        self.rect = self.image.get_rect()
-        self.quantity = 0
-        self.font = pygame.font.Font("../Assets/monogram.ttf", 30)
-        self.name = self.font.render(item.name, False, constants.WHITE)
-        self.nameRect = self.name.get_rect()
-        self.info = pygame.Surface((self.name.get_width() + 5, self.name.get_height()))
-        self.info.fill(constants.BG_COLOR2)
-        self.nameRect.center = (self.info.get_width() / 2, self.info.get_height() / 2)
-        self.info.blit(self.name, self.nameRect)
-        self.infoRect = self.info.get_rect()
-        self.mask = pygame.mask.from_surface(self.image)
+class Inventory:
+    def __init__(self):
+        self.items: dict[str, int] = {}
 
-        # self.hoverSurface = self.mask.to_surface()
-        # self.hoverSurface.set_colorkey((0, 0, 0))
-        # self.hoverSurface = pygame.transform.scale(self.hoverSurface,
-        #                                            (constants.TILE_SIZE * 2 + 5, constants.TILE_SIZE * 2 + 5))
-        # self.hoverSurfaceRect = self.hoverSurface.get_rect(center=(constants.TILE_SIZE-1, constants.TILE_SIZE-1))
-
-        self.hoverSurface = pygame.Surface((constants.TILE_SIZE * 2, constants.TILE_SIZE * 2))
-        self.hoverSurface.fill((220, 220, 220, 128))
-
-        self.newSurface = pygame.Surface((constants.TILE_SIZE * 2, constants.TILE_SIZE * 2))
-        self.newSurface.set_colorkey((0, 0, 0))
-        self.newSurface.blit(self.hoverSurface, (0, 0))
-        self.newSurface.blit(self.image, (0, 0))
-
-    def hover(self, game_canvas: pygame.Surface, offset: tuple, cursor_position: tuple):
-        rect = self.rect.copy()
-        rect.x += offset[0]
-        rect.y += offset[1]
-
-        if rect.collidepoint(cursor_position[0] / 2, cursor_position[1] / 2):
-            self.infoRect.bottomleft = (cursor_position[0] / 2, cursor_position[1] / 2)
-            game_canvas.blit(self.info, self.infoRect)
-            self.image = self.newSurface
+    def add_item(self, item_id: ItemId, quantity: int):
+        if self.has_item(item_id):
+            self.items[item_id.value] += quantity
         else:
-            self.image = self.defaultImage
+            self.items[item_id.value] = quantity
 
-    def update(self):
-        self.rect.center = self.position
+    def remove_item(self, item_id: ItemId, quantity: int):
+        if self.has_item(item_id):
+            if self.items[item_id.value] - quantity < 0:
+                self.items[item_id.value] = 0
+            else:
+                self.items[item_id.value] -= quantity
+
+    def has_item(self, item_id: ItemId):
+        return item_id.value in self.items.keys()
 
 
-class Inventory(pygame.sprite.Sprite):
-    def __init__(self, game: base_game.Game, groups: pygame.sprite.Group | list[pygame.sprite.Group]):
-        super().__init__(groups)
-        self.position = pygame.math.Vector2(constants.CANVAS_WIDTH / 2 - 256 / 2, constants.CANVAS_HEIGHT / 2 - 128 / 2)
-        self.image = pygame.Surface((256, 128))
-        self.image.fill(constants.BLUE)
-        self.rect = self.image.get_rect(topleft=self.position)
-        self.itemsGroup = pygame.sprite.Group()
-        self.items: list[InventoryItem] = [
-            InventoryItem(Item(ItemId.carrot), self.itemsGroup),
-            InventoryItem(Item(ItemId.enchantedBook), self.itemsGroup),
-            InventoryItem(Item(ItemId.bottleOfEnchanting), self.itemsGroup),
-            InventoryItem(Item(ItemId.diamond), self.itemsGroup),
-            InventoryItem(Item(ItemId.bow), self.itemsGroup)]
-        self.cellSize = constants.TILE_SIZE * 2
-        self.rows = int(self.image.get_height() / self.cellSize)
-        self.columns = int(self.image.get_width() / self.cellSize)
-        self.offset = self.position.x, self.position.y
-        self.game = game
+class InventorySlot:
+    def __init__(self, position: tuple):
+        self.position = pygame.math.Vector2(position)
+        self.item: Item = None
+        self.rect = pygame.Rect(self.position.x, self.position.y, constants.INV_TILE_SIZE, constants.INV_TILE_SIZE)
 
-    def draw_grid(self):
-        for row in range(self.rows + 1):
-            pygame.draw.line(self.image, constants.WHITE, (0, row * self.cellSize),
-                             (self.columns * self.cellSize, row * self.cellSize))
-        for column in range(self.columns + 1):
-            pygame.draw.line(self.image, constants.WHITE, (column * self.cellSize, 0),
-                             (column * self.cellSize, self.rows * self.cellSize))
+    def draw(self, display: pygame.Surface):
+        pygame.draw.rect(display, constants.WHITE, self.rect)
 
-    def place_items(self):
-        x = 0
-        y = 0
-        for item in self.items:
-            if x + self.cellSize > self.image.get_width():
-                x = 0
-                y += self.cellSize
+    def draw_item(self, display: pygame.Surface):
+        if self.item is not None and not self.item.dragging:
+            image = pygame.transform.scale(self.item.icon, (constants.INV_TILE_SIZE, constants.INV_TILE_SIZE))
+            display.blit(image, self.position)
+        if self.item is not None and self.item.dragging:
+            mouse_position = pygame.math.Vector2(pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1]) / 2
+            image = pygame.transform.scale(self.item.icon, (constants.INV_TILE_SIZE, constants.INV_TILE_SIZE))
+            display.blit(image, mouse_position - (self.rect.width / 2, self.rect.height / 2))
 
-            item.position.x = x + self.cellSize / 2
-            item.position.y = y + self.cellSize / 2
 
-            x += self.cellSize
+class SceneInventory(scene.Scene):
+    def __init__(self, display: pygame.Surface, target):
+        super().__init__("inventory", display)
+        self.rows = 4
+        self.columns = 9
+        self.slots: list[InventorySlot] = []
+        self.target = target
+        self.padding = 2
+        self.movingItem: Item = None
+        self.movingSlot: InventorySlot = None
+        self.set_slots()
 
-    def check_hover(self):
-        cursor_position = pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1]
-        for item in self.items:
-            item.hover(self.game.gameCanvas, self.offset, cursor_position)
+    def event_loop(self, manager: scene.SceneManager, event: pygame.event.Event) -> None:
+        if event.type == pygame.KEYDOWN:
+            self.input(event)
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.drag_item()
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self.place_item()
 
-    def update(self, dt: float):
-        self.image.fill(constants.BLUE)
-        self.check_hover()
+    def input(self, event: pygame.event.Event) -> None:
+        key = pygame.key.name(event.key)
+        item_ids = [item.value for item in ItemId]
 
-        self.place_items()
-        self.itemsGroup.draw(self.image)
-        self.itemsGroup.update()
-        self.draw_grid()
+        if key in item_ids:
+            self.add_item(Item(ItemId(key)))
+
+    def set_slots(self):
+        for y in range(self.display.get_height() // 2 - ((constants.INV_TILE_SIZE + self.padding) * self.rows) // 2,
+                       self.display.get_height() // 2 + ((constants.INV_TILE_SIZE + self.padding) * self.rows) // 2,
+                       constants.INV_TILE_SIZE + self.padding):
+            for x in range(
+                    self.display.get_width() // 2 - ((constants.INV_TILE_SIZE + self.padding) * self.columns) // 2,
+                    self.display.get_width() // 2 + ((constants.INV_TILE_SIZE + self.padding) * self.columns) // 2,
+                    constants.INV_TILE_SIZE + self.padding):
+                self.slots.append(InventorySlot((x, y)))
+
+    def draw_slots(self):
+        for slot in self.slots:
+            slot.draw(self.display)
+        for slot in self.slots:
+            slot.draw_item(self.display)
+
+    def place_item(self):
+        mouse_position = pygame.math.Vector2(pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1]) / 2
+        for slot in self.slots:
+            if slot.rect.collidepoint(mouse_position):
+                if slot.item is None:
+                    self.remove_item(self.movingItem)
+                    self.add_item(self.movingItem, slot)
+                else:
+                    temp = slot.item
+                    self.remove_item(self.movingItem)
+                    slot.item = self.movingItem
+                    self.movingSlot.item = temp
+
+        self.movingItem.dragging = False
+        self.movingItem = None
+
+    def add_item(self, item: Item, slot: InventorySlot = None):
+        if slot is None:
+            for slot in self.slots:
+                if slot.item is None:
+                    slot.item = item
+                    break
+        else:
+            if slot.item is None:
+                slot.item = self.movingItem
+
+    def drag_item(self):
+        mouse_position = pygame.math.Vector2((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])) / 2
+        for slot in self.slots:
+            if slot.rect.collidepoint(mouse_position) and slot.item is not None:
+                slot.item.dragging = True
+                self.movingItem = slot.item
+                self.movingSlot = slot
+                break
+
+    def remove_item(self, item: Item):
+        for slot in self.slots:
+            if slot.item is item:
+                slot.item = None
+                break
+
+    def draw(self) -> None:
+        self.display.fill(constants.BG_COLOR1)
+        self.draw_slots()
+
+

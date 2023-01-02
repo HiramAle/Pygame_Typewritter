@@ -6,5 +6,7 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="DungeonCrusaderV03-master" />
     <orderEntry type="module" module-name="part 03" />
+    <orderEntry type="module" module-name="Prototipo TT" />
+    <orderEntry type="module" module-name="pg-inventory-system-master" />
   </component>
 </module>

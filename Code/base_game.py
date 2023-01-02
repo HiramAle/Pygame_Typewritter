@@ -1,6 +1,8 @@
 import pygame
 import constants
 import basic_player
+import basic_inventory
+import scene
 import inventory
 
 
@@ -12,22 +14,20 @@ class Game:
         self.gameCanvas = pygame.Surface((constants.CANVAS_WIDTH, constants.CANVAS_HEIGHT))
         self.clock = pygame.time.Clock()
         self.running = True
-        self.sprites = pygame.sprite.Group()
-        self.player = basic_player.Player(self.sprites)
-        self.inventory = inventory.Inventory(self, self.sprites)
+        self.sceneManager = scene.SceneManager()
+        # self.sceneManager.set_scene(scene.BasicScene(self.gameCanvas))
+        self.sceneManager.set_scene(inventory.SceneInventory(self.gameCanvas, 1))
 
     def draw(self):
-        self.gameCanvas.fill(constants.BG_COLOR1)
+        self.sceneManager.draw()
+        self.scale_canvas()
 
-        self.sprites.draw(self.gameCanvas)
-        self.sprites.update(self.clock.tick() / 1000)
-        self.render()
-
-    def render(self):
-        # Blit the game canvas on display
+    def scale_canvas(self):
+        # Blit the game canvas on display and scale it up
         self.display.blit(pygame.transform.scale(self.gameCanvas, (constants.WIDTH, constants.HEIGHT)), (0, 0))
 
     def update(self):
+        self.sceneManager.update(self.clock.tick() / 1000)
         self.update_caption()
 
     def update_caption(self):
@@ -41,6 +41,8 @@ class Game:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     exit()
+                self.sceneManager.event_loop(event)
+
             self.update()
             self.draw()
             pygame.display.update()
